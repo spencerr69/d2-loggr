@@ -126,7 +126,7 @@ export default {
 		const refreshTokens = await getRefreshTokens(env.loggr_db);
 		for (let i = 0; i < refreshTokens.length; i++) {
 			const token = refreshTokens[i];
-			const newToken = await refreshAccessToken(env, token['membership_id'], token['refresh_token']);
+			const newToken = await refreshAccessToken(env, token['membership_id'] as string, token['refresh_token'] as string);
 		}
 	},
 } satisfies ExportedHandler<Env>;
