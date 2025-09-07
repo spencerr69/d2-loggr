@@ -1,7 +1,9 @@
-export default async function updateRefreshToken(env: Env, membershipId: string, refreshToken: string, refreshExpiry: number) {
-	const { results } = await env.loggr_db
-		.prepare("UPDATE Tokens SET refresh_token = ?, refresh_expiry = ?, received_date = date('now') WHERE membership_id = ?")
-		.bind(refreshToken, refreshExpiry, membershipId)
+export default async function updateRefreshToken(db: D1Database, membershipId: number, refreshToken: string, refreshExpiry: number) {
+	const { results } = await db
+		.prepare(
+			"INSERT INTO Tokens (membership_id, refresh_token, refresh_expiry, received_date) VALUES (?, ?, ?, date('now')) ON CONFLICT(membership_id) DO UPDATE SET refresh_token = ?, refresh_expiry = ?, received_date = date('now');",
+		)
+		.bind(membershipId, refreshToken, refreshExpiry, refreshToken, refreshExpiry)
 		.run();
 
 	return Response.json(results);

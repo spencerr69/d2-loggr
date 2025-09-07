@@ -16,6 +16,7 @@
  */
 
 import { Buffer } from 'node:buffer';
+import updateRefreshToken from './dbqueries/updateRefreshToken';
 
 const decode = (str: string): string => Buffer.from(str, 'base64').toString('binary');
 const encode = (str: string): string => Buffer.from(str, 'binary').toString('base64');
@@ -61,12 +62,10 @@ export default {
 				if (response.ok) {
 					const responseJson: TokenResponse = await response.json();
 
-					//when we get response we should save membership id, refresh token, refresh expiry, current date in tokens
-					const { results } = await env.loggr_db
-						.prepare("INSERT INTO Tokens (membership_id, refresh_token, refresh_expiry, received_date) VALUES (?, ?, ?, date('now'));")
-						.bind(responseJson.membership_id, responseJson.refresh_token, responseJson.refresh_expires_in)
+					const membershipId = parseInt(responseJson.membership_id);
 
-						.run();
+					//when we get response we should save membership id, refresh token, refresh expiry, current date in tokens
+					const results = await updateRefreshToken(env.loggr_db, membershipId, responseJson.refresh_token, responseJson.expires_in);
 
 					return Response.json(results);
 				} else {
