@@ -1,20 +1,9 @@
-/**
- * Welcome to Cloudflare Workers!
- *
- * This is a template for a Scheduled Worker: a Worker that can run on a
- * configurable interval:
- * https://developers.cloudflare.com/workers/platform/triggers/cron-triggers/
- *
- * - Run `npm run dev` in your terminal to start a development server
- * - Run `curl "http://localhost:8787/__scheduled?cron=*+*+*+*+*"` to see your Worker in action
- * - Run `npm run deploy` to publish your Worker
- *
- * Bind resources to your Worker in `wrangler.jsonc`. After adding bindings, a type definition for the
- * `Env` object can be regenerated with `npm run cf-typegen`.
- *
- * Learn more at https://developers.cloudflare.com/workers/
- */
 import updateRefreshToken from './dbqueries/updateRefreshToken';
+
+//TODO: Logic to turn refresh tokens into access tokens
+// Setup user table (membership id, bungie name and code basically thats it)
+// Setup lightlog table (log id, membership id, max light level, date, total time played, )
+// actually like. make stuff lol
 
 const decode = (str: string): string => Buffer.from(str, 'base64').toString('binary');
 const encode = (str: string): string => Buffer.from(str, 'binary').toString('base64');
@@ -59,7 +48,6 @@ export default {
 				});
 				if (response.ok) {
 					const responseJson: TokenResponse = await response.json();
-
 					const membershipId = parseInt(responseJson.membership_id);
 
 					//when we get response we should save membership id, refresh token, refresh expiry, current date in tokens
@@ -74,6 +62,7 @@ export default {
 					});
 				}
 			} else {
+				
 				const bungieAuthUrl = new URL('https://www.bungie.net/en/oauth/authorize');
 				bungieAuthUrl.searchParams.append('client_id', '50746');
 				bungieAuthUrl.searchParams.append('response_type', 'code');
