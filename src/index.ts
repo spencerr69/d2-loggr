@@ -14,8 +14,6 @@
  *
  * Learn more at https://developers.cloudflare.com/workers/
  */
-
-import { Buffer } from 'node:buffer';
 import updateRefreshToken from './dbqueries/updateRefreshToken';
 
 const decode = (str: string): string => Buffer.from(str, 'base64').toString('binary');
