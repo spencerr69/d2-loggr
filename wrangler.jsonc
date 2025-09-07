@@ -12,6 +12,7 @@
 	},
 	"vars": {
 		"client_id": "50746",
+		"api_key": "9ecbffe7d93d4b4aa0c35008a52114c6",
 	},
 	"compatibility_flags": ["nodejs_compat_v2"],
 	/**

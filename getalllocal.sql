@@ -1,1 +1,2 @@
 SELECT * FROM Tokens;
+SELECT * FROM Users;

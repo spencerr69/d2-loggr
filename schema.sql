@@ -6,4 +6,10 @@ CREATE TABLE Tokens (
 	refresh_expiry INTEGER,
 	received_date TEXT
 );
-INSERT INTO Tokens (membership_id, refresh_token, refresh_expiry, received_date) Values (0, "test", "test", date("now"));
+
+DROP TABLE IF EXISTS Users;
+CREATE TABLE Users (
+	membership_id INTEGER PRIMARY KEY,
+	bungie_display_name TEXT,
+	bungie_display_name_code INTEGER
+);

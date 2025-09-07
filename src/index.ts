@@ -1,21 +1,23 @@
-import updateRefreshToken from './dbqueries/updateRefreshToken';
+import { getRefreshTokens, updateTokenRecord } from './dbqueries/tokensTable';
+import { BungieMembershipType, DestinyComponentType, getProfile, PlatformErrorCodes } from 'bungie-api-ts/destiny2';
+import { createHttpClient, createHttpUserClient } from './httpClient';
+import { updateUserRecord } from './dbqueries/usersTable';
+import { getMembershipDataForCurrentUser } from 'bungie-api-ts/user';
+import { encode } from './functions/helpers';
+import { refreshAccessToken } from './functions/refreshAccessToken';
 
-//TODO: Logic to turn refresh tokens into access tokens
-// Setup user table (membership id, bungie name and code basically thats it)
 // Setup lightlog table (log id, membership id, max light level, date, total time played, )
 // actually like. make stuff lol
-
-const decode = (str: string): string => Buffer.from(str, 'base64').toString('binary');
-const encode = (str: string): string => Buffer.from(str, 'binary').toString('base64');
 
 //setup env
 export interface Env {
 	loggr_db: D1Database;
 	CLIENT_SECRET: string;
 	client_id: string;
+	API_KEY: string;
 }
 
-interface TokenResponse {
+export interface TokenResponse {
 	access_token: string;
 	token_type: string;
 	expires_in: number;
@@ -28,6 +30,8 @@ export default {
 	async fetch(req, env, _ctx) {
 		const url = new URL(req.url);
 		const pathname = url.pathname;
+
+		const httpClient = createHttpClient(fetch, env.API_KEY);
 
 		if (pathname === '/api/auth') {
 			if (url.searchParams.has('code')) {
@@ -48,12 +52,48 @@ export default {
 				});
 				if (response.ok) {
 					const responseJson: TokenResponse = await response.json();
-					const membershipId = parseInt(responseJson.membership_id);
+					// const membershipId = parseInt(responseJson.membership_id);
+
+					const httpUserClient = createHttpUserClient(fetch, env.API_KEY, {
+						token_type: responseJson.token_type,
+						access_token: responseJson.access_token,
+					});
+
+					const memberData = await getMembershipDataForCurrentUser(httpUserClient);
+					if (memberData.ErrorCode !== PlatformErrorCodes.Success) {
+						return Response.json(memberData);
+					}
+
+					const applicableMembershipTypes = memberData.Response.destinyMemberships[0].applicableMembershipTypes;
+					const mainMembershipType = memberData.Response.destinyMemberships[0].membershipType;
+					const membershipId = memberData.Response.destinyMemberships[0].membershipId;
 
 					//when we get response we should save membership id, refresh token, refresh expiry, current date in tokens
-					const results = await updateRefreshToken(env.loggr_db, membershipId, responseJson.refresh_token, responseJson.expires_in);
+					const _updateToken = await updateTokenRecord(
+						env.loggr_db,
+						membershipId,
+						responseJson.refresh_token,
+						responseJson.refresh_expires_in,
+					);
 
-					return Response.json(results);
+					//get profile details and put into db
+					const profile = await getProfile(httpClient, {
+						membershipType: mainMembershipType,
+						destinyMembershipId: membershipId,
+						components: [DestinyComponentType.Profiles],
+					});
+					console.log(profile);
+
+					if (profile.ErrorCode !== PlatformErrorCodes.Success) {
+						return new Response(profile.Message);
+					}
+
+					const { bungieGlobalDisplayName, bungieGlobalDisplayNameCode } = profile.Response.profile.data?.userInfo ?? {};
+					const _updateUser = await updateUserRecord(env.loggr_db, membershipId, bungieGlobalDisplayName, bungieGlobalDisplayNameCode);
+					return new Response('Successfully authenticated and recorded user.', {
+						status: 200,
+						statusText: 'OK',
+					});
 				} else {
 					return new Response(response.body, {
 						status: response.status,
@@ -62,9 +102,8 @@ export default {
 					});
 				}
 			} else {
-				
 				const bungieAuthUrl = new URL('https://www.bungie.net/en/oauth/authorize');
-				bungieAuthUrl.searchParams.append('client_id', '50746');
+				bungieAuthUrl.searchParams.append('client_id', env.client_id);
 				bungieAuthUrl.searchParams.append('response_type', 'code');
 
 				//TODO: generate actual state string and ensure it is valid when receiving response
@@ -84,12 +123,10 @@ export default {
 		// A Cron Trigger can make requests to other endpoints on the Internet,
 		// publish to a Queue, query a D1 Database, and much more.
 		//
-		// We'll keep it simple and make an API call to a Cloudflare API:
-		let resp = await fetch('https://api.cloudflare.com/client/v4/ips');
-		let wasSuccessful = resp.ok ? 'success' : 'fail';
-
-		// You could store this result in KV, write to a D1 Database, or publish to a Queue.
-		// In this template, we'll just log the result:
-		console.log(`trigger fired at ${event.cron}: ${wasSuccessful}`);
+		const refreshTokens = await getRefreshTokens(env.loggr_db);
+		for (let i = 0; i < refreshTokens.length; i++) {
+			const token = refreshTokens[i];
+			const newToken = await refreshAccessToken(env, token['membership_id'], token['refresh_token']);
+		}
 	},
 } satisfies ExportedHandler<Env>;
