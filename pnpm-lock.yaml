@@ -7,7 +7,14 @@ settings:
 importers:
 
   .:
+    dependencies:
+      bungie-api-ts:
+        specifier: ^5.7.0
+        version: 5.7.0
     devDependencies:
+      '@types/node':
+        specifier: ^24.3.1
+        version: 24.3.1
       typescript:
         specifier: ^5.5.2
         version: 5.9.2
@@ -348,6 +355,9 @@ packages:
   '@speed-highlight/core@1.2.7':
     resolution: {integrity: sha512-0dxmVj4gxg3Jg879kvFS/msl4s9F3T9UXC1InxgOf7t5NvcPD97u/WTA5vL/IxWHMn7qSxBozqrnnE2wvl1m8g==}
 
+  '@types/node@24.3.1':
+    resolution: {integrity: sha512-3vXmQDXy+woz+gnrTvuvNrPzekOi+Ds0ReMxw0LzBiK3a+1k0kQn9f2NWk+lgD4rJehFUmYy2gMhJ2ZI+7YP9g==}
+
   acorn-walk@8.3.2:
     resolution: {integrity: sha512-cjkyv4OtNCIeqhHrfS81QWXoCBPExR/J62oyEqepVw8WaQeSqpW2uhuLPh1m9eWhDuOo/jUXVTlifvesOWp/4A==}
     engines: {node: '>=0.4.0'}
@@ -359,6 +369,10 @@ packages:
 
   blake3-wasm@2.1.5:
     resolution: {integrity: sha512-F1+K8EbfOZE49dtoPtmxUQrpXaBIl3ICvasLh+nJta0xkz+9kF/7uet9fLnwKqhDrmj6g+6K3Tw9yQPUg2ka5g==}
+
+  bungie-api-ts@5.7.0:
+    resolution: {integrity: sha512-ev+NPfOqUkk9aVvrpYXamAgpDyg5Jl9/e2RJhZIsTTNYBCbupF6+cLGSqef0LwVTSBIjLuIU7wiNOOGUx+mqrQ==}
+    engines: {node: '>=13.2.0'}
 
   color-convert@2.0.1:
     resolution: {integrity: sha512-RRECPsj7iu/xb5oKYcsFHSppFNnsj/52OVTRKb4zP5onXwVF3zVmmToNcOfGC+CRDpfK/U584fMg38ZHCaElKQ==}
@@ -464,6 +478,9 @@ packages:
 
   ufo@1.6.1:
     resolution: {integrity: sha512-9a4/uxlTWJ4+a5i0ooc1rU7C7YOw3wT+UGqdeNNHWnOF9qcMBgLRS+4IYUqbczewFx4mLEig6gawh7X6mFlEkA==}
+
+  undici-types@7.10.0:
+    resolution: {integrity: sha512-t5Fy/nfn+14LuOc2KNYg75vZqClpAiqscVvMygNnlsHBFpSXdJaYtXMcdNLpl/Qvc3P2cB3s6lOV51nqsFq4ag==}
 
   undici@7.15.0:
     resolution: {integrity: sha512-7oZJCPvvMvTd0OlqWsIxTuItTpJBpU1tcbVl24FMn3xt3+VSunwUasmfPJRE57oNO1KsZ4PgA1xTdAX4hq8NyQ==}
@@ -719,11 +736,17 @@ snapshots:
 
   '@speed-highlight/core@1.2.7': {}
 
+  '@types/node@24.3.1':
+    dependencies:
+      undici-types: 7.10.0
+
   acorn-walk@8.3.2: {}
 
   acorn@8.14.0: {}
 
   blake3-wasm@2.1.5: {}
+
+  bungie-api-ts@5.7.0: {}
 
   color-convert@2.0.1:
     dependencies:
@@ -858,6 +881,8 @@ snapshots:
   typescript@5.9.2: {}
 
   ufo@1.6.1: {}
+
+  undici-types@7.10.0: {}
 
   undici@7.15.0: {}
 

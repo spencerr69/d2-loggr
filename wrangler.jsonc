@@ -8,8 +8,12 @@
 	"main": "src/index.ts",
 	"compatibility_date": "2025-09-06",
 	"observability": {
-		"enabled": true
+		"enabled": true,
 	},
+	"vars": {
+		"client_id": "50746",
+	},
+	"compatibility_flags": ["nodejs_compat_v2"],
 	/**
 	 * Smart Placement
 	 * Docs: https://developers.cloudflare.com/workers/configuration/smart-placement/#smart-placement
@@ -41,8 +45,13 @@
 	 */
 	// "services": [{ "binding": "MY_SERVICE", "service": "my-service" }]
 	"triggers": {
-		"crons": [
-			"* * * * *"
-		]
-	}
+		"crons": ["0 0 * * *"],
+	},
+	"d1_databases": [
+		{
+			"binding": "loggr_db",
+			"database_name": "d2-loggr-db",
+			"database_id": "fe02710c-7595-473b-8610-6cc916fcee76",
+		},
+	],
 }
