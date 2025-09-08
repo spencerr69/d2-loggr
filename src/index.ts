@@ -26,6 +26,11 @@ export interface TokenResponse {
 	membership_id: string;
 }
 
+export interface TokenErrorResponse {
+	status: number;
+	statusText: string;
+}
+
 export default {
 	async fetch(req, env, _ctx) {
 		const url = new URL(req.url);
@@ -130,12 +135,12 @@ export default {
 		const refreshTokens = await getRefreshTokens(env.loggr_db);
 
 		const refreshPromises = refreshTokens.map((token) => {
-			refreshAccessToken(env, token.membership_id, token.refresh_token);
+			return refreshAccessToken(env, token.membership_id, token.refresh_token);
 		});
 
-		for (let i = 0; i < refreshTokens.length; i++) {
-			const token = refreshTokens[i];
-			const newToken = await refreshAccessToken(env, token['membership_id'] as string, token['refresh_token'] as string);
-		}
+		const tokens = await Promise.all(refreshPromises);
+		const filteredTokens = tokens.filter((token) => {
+			return !(token as TokenErrorResponse).status;
+		}) as TokenResponse[];
 	},
 } satisfies ExportedHandler<Env>;

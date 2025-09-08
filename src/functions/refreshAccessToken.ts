@@ -1,5 +1,5 @@
 import { CLIENT_RENEG_WINDOW } from 'node:tls';
-import { TokenResponse, Env } from '..';
+import { TokenResponse, Env, TokenErrorResponse } from '..';
 import { updateTokenRecord } from '../dbqueries/tokensTable';
 import { encode } from './helpers';
 
@@ -22,9 +22,10 @@ export async function refreshAccessToken(env: Env, membershipId: string, refresh
 	});
 
 	if (!response.ok) {
-		return new Response('flop', {
+		return {
 			status: response.status,
-		});
+			statusText: response.statusText,
+		} as TokenErrorResponse;
 	}
 
 	const responseJson: TokenResponse = await response.json();
