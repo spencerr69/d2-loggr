@@ -1,10 +1,20 @@
 import { getRefreshTokens, updateTokenRecord } from './dbqueries/tokensTable';
-import { BungieMembershipType, DestinyComponentType, getProfile, PlatformErrorCodes } from 'bungie-api-ts/destiny2';
+import {
+	BungieMembershipType,
+	DestinyComponentType,
+	getDestinyManifest,
+	getDestinyManifestComponent,
+	getDestinyManifestSlice,
+	getProfile,
+	PlatformErrorCodes,
+} from 'bungie-api-ts/destiny2';
 import { createHttpClient, createHttpUserClient } from './httpClient';
 import { updateUserRecord } from './dbqueries/usersTable';
 import { getMembershipDataForCurrentUser } from 'bungie-api-ts/user';
 import { encode } from './functions/helpers';
-import { refreshAccessToken } from './functions/refreshAccessToken';
+import { refreshAccessToken, RefreshTokenResponse } from './functions/refreshAccessToken';
+import { propagateLightlog } from './functions/propagateLightlog';
+import { getMembershipInfo } from './functions/getMembershipInfo';
 
 // Setup lightlog table (log id, membership id, max light level, date, total time played, )
 // actually like. make stuff lol
@@ -35,7 +45,6 @@ export default {
 	async fetch(req, env, _ctx) {
 		const url = new URL(req.url);
 		const pathname = url.pathname;
-
 		const httpClient = createHttpClient(fetch, env.API_KEY);
 
 		if (pathname === '/api/auth') {
@@ -58,19 +67,7 @@ export default {
 				if (response.ok) {
 					const responseJson: TokenResponse = await response.json();
 
-					const httpUserClient = createHttpUserClient(fetch, env.API_KEY, {
-						token_type: responseJson.token_type,
-						access_token: responseJson.access_token,
-					});
-
-					const memberData = await getMembershipDataForCurrentUser(httpUserClient);
-					if (memberData.ErrorCode !== PlatformErrorCodes.Success) {
-						return Response.json(memberData);
-					}
-
-					const applicableMembershipTypes = memberData.Response.destinyMemberships[0].applicableMembershipTypes;
-					const mainMembershipType = memberData.Response.destinyMemberships[0].membershipType;
-					const membershipId = memberData.Response.destinyMemberships[0].membershipId;
+					const { membershipId, mainMembershipType } = await getMembershipInfo(env, responseJson);
 
 					//when we get response we should save membership id, refresh token, refresh expiry, current date in tokens
 					const _updateToken = await updateTokenRecord(
@@ -86,7 +83,6 @@ export default {
 						destinyMembershipId: membershipId,
 						components: [DestinyComponentType.Profiles],
 					});
-					console.log(profile);
 
 					if (profile.ErrorCode !== PlatformErrorCodes.Success) {
 						return new Response(profile.Message);
@@ -116,7 +112,8 @@ export default {
 				bungieAuthUrl.searchParams.append('response_type', 'code');
 
 				//TODO: generate actual state string and ensure it is valid when receiving response
-				bungieAuthUrl.searchParams.append('state', 'aaabbb');
+				const state = crypto.randomUUID();
+				bungieAuthUrl.searchParams.append('state', state);
 
 				//do auth
 				return new Response('' + bungieAuthUrl);
@@ -132,6 +129,17 @@ export default {
 		// A Cron Trigger can make requests to other endpoints on the Internet,
 		// publish to a Queue, query a D1 Database, and much more.
 		//
+		const httpClient = createHttpClient(fetch, env.API_KEY);
+
+		const destinyManifest = await getDestinyManifest(httpClient);
+		const manifestTables = await getDestinyManifestSlice(httpClient, {
+			destinyManifest: destinyManifest.Response,
+			language: 'en',
+			tableNames: ['DestinyInventoryItemDefinition', 'DestinyEquipmentSlotDefinition'],
+		});
+
+		destinyManifest.Response.version;
+
 		const refreshTokens = await getRefreshTokens(env.loggr_db);
 
 		const refreshPromises = refreshTokens.map((token) => {
@@ -141,6 +149,15 @@ export default {
 		const tokens = await Promise.all(refreshPromises);
 		const filteredTokens = tokens.filter((token) => {
 			return !(token as TokenErrorResponse).status;
-		}) as TokenResponse[];
+		}) as RefreshTokenResponse[];
+
+		for (let i = 0; i < filteredTokens.length; i++) {
+			const _propergate = await propagateLightlog(
+				env,
+				filteredTokens[i],
+				manifestTables.DestinyInventoryItemDefinition,
+				manifestTables.DestinyEquipmentSlotDefinition,
+			);
+		}
 	},
 } satisfies ExportedHandler<Env>;

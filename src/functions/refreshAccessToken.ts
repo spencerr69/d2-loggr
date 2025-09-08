@@ -1,4 +1,3 @@
-import { CLIENT_RENEG_WINDOW } from 'node:tls';
 import { TokenResponse, Env, TokenErrorResponse } from '..';
 import { updateTokenRecord } from '../dbqueries/tokensTable';
 import { encode } from './helpers';
@@ -34,5 +33,10 @@ export async function refreshAccessToken(env: Env, membershipId: string, refresh
 	//when we get response we should save membership id, refresh token, refresh expiry, current date in tokens
 	const _updateToken = await updateTokenRecord(env.loggr_db, membershipId, responseJson.refresh_token, responseJson.refresh_expires_in);
 
-	return responseJson;
+	return { responseJson, membershipId };
+}
+
+export interface RefreshTokenResponse {
+	responseJson: TokenResponse;
+	membershipId: string;
 }
