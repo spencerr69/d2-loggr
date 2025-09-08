@@ -26,6 +26,7 @@ export async function refreshAccessToken(env: Env, membershipId: string, refresh
 			status: response.status,
 		});
 	}
+
 	const responseJson: TokenResponse = await response.json();
 	// const membershipId = parseInt(responseJson.membership_id);
 

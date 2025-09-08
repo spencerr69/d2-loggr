@@ -9,7 +9,14 @@ export async function updateTokenRecord(db: D1Database, membershipId: string, re
 	return Response.json(results);
 }
 
+export type RefreshTokenRecord = {
+	membership_id: string;
+	refresh_token: string;
+	refresh_expiry: number;
+	received_date: string;
+};
+
 export async function getRefreshTokens(db: D1Database) {
 	const { results } = await db.prepare('SELECT * FROM Tokens').run();
-	return results;
+	return results as RefreshTokenRecord[];
 }

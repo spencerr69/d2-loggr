@@ -52,7 +52,6 @@ export default {
 				});
 				if (response.ok) {
 					const responseJson: TokenResponse = await response.json();
-					// const membershipId = parseInt(responseJson.membership_id);
 
 					const httpUserClient = createHttpUserClient(fetch, env.API_KEY, {
 						token_type: responseJson.token_type,
@@ -89,6 +88,11 @@ export default {
 					}
 
 					const { bungieGlobalDisplayName, bungieGlobalDisplayNameCode } = profile.Response.profile.data?.userInfo ?? {};
+
+					if (!bungieGlobalDisplayName || !bungieGlobalDisplayNameCode) {
+						return new Response('Couldnt get display name');
+					}
+
 					const _updateUser = await updateUserRecord(env.loggr_db, membershipId, bungieGlobalDisplayName, bungieGlobalDisplayNameCode);
 					return new Response('Successfully authenticated and recorded user.', {
 						status: 200,
@@ -124,6 +128,11 @@ export default {
 		// publish to a Queue, query a D1 Database, and much more.
 		//
 		const refreshTokens = await getRefreshTokens(env.loggr_db);
+
+		const refreshPromises = refreshTokens.map((token) => {
+			refreshAccessToken(env, token.membership_id, token.refresh_token);
+		});
+
 		for (let i = 0; i < refreshTokens.length; i++) {
 			const token = refreshTokens[i];
 			const newToken = await refreshAccessToken(env, token['membership_id'] as string, token['refresh_token'] as string);
