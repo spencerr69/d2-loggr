@@ -1,5 +1,6 @@
 import { HttpClient, HttpClientConfig } from 'bungie-api-ts/http';
 
+//took much of this from DIM thank yew
 export function createHttpClient(fetchFunction: typeof fetch, apiKey: string): HttpClient {
 	return async <T>(config: HttpClientConfig) => {
 		let url = config.url;

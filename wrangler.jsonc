@@ -55,4 +55,10 @@
 			"database_id": "fe02710c-7595-473b-8610-6cc916fcee76",
 		},
 	],
+	"r2_buckets": [
+		{
+			"binding": "r2_bucket",
+			"bucket_name": "d2-loggr",
+		},
+	],
 }

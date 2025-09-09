@@ -1,30 +1,27 @@
 import { getRefreshTokens, updateTokenRecord } from './dbqueries/tokensTable';
 import {
-	BungieMembershipType,
 	DestinyComponentType,
+	DestinyManifestSlice,
 	getDestinyManifest,
-	getDestinyManifestComponent,
 	getDestinyManifestSlice,
 	getProfile,
 	PlatformErrorCodes,
 } from 'bungie-api-ts/destiny2';
-import { createHttpClient, createHttpUserClient } from './httpClient';
+import { createHttpClient } from './httpClient';
 import { updateUserRecord } from './dbqueries/usersTable';
-import { getMembershipDataForCurrentUser } from 'bungie-api-ts/user';
 import { encode } from './functions/helpers';
 import { refreshAccessToken, RefreshTokenResponse } from './functions/refreshAccessToken';
 import { propagateLightlog } from './functions/propagateLightlog';
 import { getMembershipInfo } from './functions/getMembershipInfo';
 
-// Setup lightlog table (log id, membership id, max light level, date, total time played, )
-// actually like. make stuff lol
+const MS_BETWEEN_MANIFESTS = 604800000;
 
-//setup env
 export interface Env {
 	loggr_db: D1Database;
 	CLIENT_SECRET: string;
 	client_id: string;
 	API_KEY: string;
+	r2_bucket: R2Bucket;
 }
 
 export interface TokenResponse {
@@ -45,12 +42,12 @@ export default {
 	async fetch(req, env, _ctx) {
 		const url = new URL(req.url);
 		const pathname = url.pathname;
+
 		const httpClient = createHttpClient(fetch, env.API_KEY);
 
 		if (pathname === '/api/auth') {
 			if (url.searchParams.has('code')) {
 				const tokenUrl = 'https://www.bungie.net/platform/app/oauth/token';
-
 				const requestBody = {
 					grant_type: 'authorization_code',
 					code: url.searchParams.get('code') ?? '',
@@ -64,100 +61,123 @@ export default {
 					}),
 					body: new URLSearchParams(requestBody),
 				});
-				if (response.ok) {
-					const responseJson: TokenResponse = await response.json();
 
-					const { membershipId, mainMembershipType } = await getMembershipInfo(env, responseJson);
-
-					//when we get response we should save membership id, refresh token, refresh expiry, current date in tokens
-					const _updateToken = await updateTokenRecord(
-						env.loggr_db,
-						membershipId,
-						responseJson.refresh_token,
-						responseJson.refresh_expires_in,
-					);
-
-					//get profile details and put into db
-					const profile = await getProfile(httpClient, {
-						membershipType: mainMembershipType,
-						destinyMembershipId: membershipId,
-						components: [DestinyComponentType.Profiles],
-					});
-
-					if (profile.ErrorCode !== PlatformErrorCodes.Success) {
-						return new Response(profile.Message);
-					}
-
-					const { bungieGlobalDisplayName, bungieGlobalDisplayNameCode } = profile.Response.profile.data?.userInfo ?? {};
-
-					if (!bungieGlobalDisplayName || !bungieGlobalDisplayNameCode) {
-						return new Response('Couldnt get display name');
-					}
-
-					const _updateUser = await updateUserRecord(env.loggr_db, membershipId, bungieGlobalDisplayName, bungieGlobalDisplayNameCode);
-					return new Response('Successfully authenticated and recorded user.', {
-						status: 200,
-						statusText: 'OK',
-					});
-				} else {
+				if (!response.ok) {
 					return new Response(response.body, {
 						status: response.status,
 						statusText: response.statusText,
 						headers: response.headers,
 					});
 				}
+
+				const responseJson: TokenResponse = await response.json();
+
+				const { membershipId, mainMembershipType } = await getMembershipInfo(env, responseJson);
+
+				//log refresh token to Tokens table
+				await updateTokenRecord(env.loggr_db, membershipId, responseJson.refresh_token, responseJson.refresh_expires_in);
+
+				//log profile details to Users table
+				const profile = await getProfile(httpClient, {
+					membershipType: mainMembershipType,
+					destinyMembershipId: membershipId,
+					components: [DestinyComponentType.Profiles],
+				});
+
+				if (profile.ErrorCode !== PlatformErrorCodes.Success) {
+					return new Response(profile.Message);
+				}
+				const { bungieGlobalDisplayName, bungieGlobalDisplayNameCode } = profile.Response.profile.data?.userInfo ?? {};
+				if (!bungieGlobalDisplayName || !bungieGlobalDisplayNameCode) {
+					return new Response('Couldnt get full display name', {
+						status: 500,
+						statusText: 'Internal Server Error',
+					});
+				}
+				await updateUserRecord(env.loggr_db, membershipId, bungieGlobalDisplayName, bungieGlobalDisplayNameCode);
+
+				console.log({
+					membershipId: membershipId,
+					bungieDisplayName: bungieGlobalDisplayName,
+					bungieDisplayNameCode: bungieGlobalDisplayNameCode,
+				});
+
+				return new Response('Successfully authenticated and recorded user.', {
+					status: 200,
+					statusText: 'OK',
+				});
 			} else {
-				const bungieAuthUrl = new URL('https://www.bungie.net/en/oauth/authorize');
-				bungieAuthUrl.searchParams.append('client_id', env.client_id);
-				bungieAuthUrl.searchParams.append('response_type', 'code');
+				// bungie auth url logic to be solely on client side
+				// const bungieAuthUrl = new URL('https://www.bungie.net/en/oauth/authorize');
+				// bungieAuthUrl.searchParams.append('client_id', env.client_id);
+				// bungieAuthUrl.searchParams.append('response_type', 'code');
 
-				//TODO: generate actual state string and ensure it is valid when receiving response
-				const state = crypto.randomUUID();
-				bungieAuthUrl.searchParams.append('state', state);
+				// const state = crypto.randomUUID();
+				// bungieAuthUrl.searchParams.append('state', state);
 
-				//do auth
-				return new Response('' + bungieAuthUrl);
+				return new Response('Please send the code you freaking NERD !', {
+					status: 401,
+					statusText: 'unauthorised',
+				});
 			}
 		}
 
-		return new Response(`To test the scheduled handler, ensure you have used the "--test-scheduled" then try running "curl ${url.href}".`);
+		return new Response('', {
+			status: 404,
+			statusText: 'Not Found',
+		});
 	},
 
-	// The scheduled handler is invoked at the interval set in our wrangler.jsonc's
-	// [[triggers]] configuration.
+	// Scheduled is invoked with cron trigger
 	async scheduled(event, env, ctx): Promise<void> {
-		// A Cron Trigger can make requests to other endpoints on the Internet,
-		// publish to a Queue, query a D1 Database, and much more.
-		//
-		const httpClient = createHttpClient(fetch, env.API_KEY);
+		let manifestTables: DestinyManifestSlice<('DestinyInventoryItemDefinition' | 'DestinyEquipmentSlotDefinition')[]> | undefined =
+			undefined;
 
-		const destinyManifest = await getDestinyManifest(httpClient);
-		const manifestTables = await getDestinyManifestSlice(httpClient, {
-			destinyManifest: destinyManifest.Response,
-			language: 'en',
-			tableNames: ['DestinyInventoryItemDefinition', 'DestinyEquipmentSlotDefinition'],
-		});
+		const manifest = await env.r2_bucket.get('manifest.json');
 
-		destinyManifest.Response.version;
+		if (manifest == null || Date.now() - manifest.uploaded.valueOf() > MS_BETWEEN_MANIFESTS) {
+			console.log({ message: 'Downloading new manifest.', previousManifestDate: manifest?.uploaded });
+
+			const httpClient = createHttpClient(fetch, env.API_KEY);
+			const destinyManifest = await getDestinyManifest(httpClient);
+			manifestTables = await getDestinyManifestSlice(httpClient, {
+				destinyManifest: destinyManifest.Response,
+				language: 'en',
+				tableNames: ['DestinyInventoryItemDefinition', 'DestinyEquipmentSlotDefinition'],
+			});
+
+			await env.r2_bucket.put('manifest.json', JSON.stringify(manifestTables));
+		} else {
+			manifestTables = JSON.parse(await manifest.text());
+		}
+
+		if (manifestTables === undefined) {
+			throw Error("Couldn't get manifest. FLOP !");
+		}
 
 		const refreshTokens = await getRefreshTokens(env.loggr_db);
 
-		const refreshPromises = refreshTokens.map((token) => {
+		const tokenPromises = refreshTokens.map((token) => {
 			return refreshAccessToken(env, token.membership_id, token.refresh_token);
 		});
+		const tokens = await Promise.all(tokenPromises);
 
-		const tokens = await Promise.all(refreshPromises);
 		const filteredTokens = tokens.filter((token) => {
 			return !(token as TokenErrorResponse).status;
 		}) as RefreshTokenResponse[];
 
-		for (let i = 0; i < filteredTokens.length; i++) {
-			const _propergate = await propagateLightlog(
-				env,
-				filteredTokens[i],
-				manifestTables.DestinyInventoryItemDefinition,
-				manifestTables.DestinyEquipmentSlotDefinition,
-			);
-		}
+		const lightlogPromises = filteredTokens.map((token) => {
+			return propagateLightlog(env, token, manifestTables.DestinyInventoryItemDefinition, manifestTables.DestinyEquipmentSlotDefinition);
+		});
+		await Promise.all(lightlogPromises);
+
+		// for (let i = 0; i < filteredTokens.length; i++) {
+		// 	await propagateLightlog(
+		// 		env,
+		// 		filteredTokens[i],
+		// 		manifestTables.DestinyInventoryItemDefinition,
+		// 		manifestTables.DestinyEquipmentSlotDefinition,
+		// 	);
+		// }
 	},
 } satisfies ExportedHandler<Env>;

@@ -1,6 +1,5 @@
 import { TokenResponse, Env, TokenErrorResponse } from '..';
 import { updateTokenRecord } from '../dbqueries/tokensTable';
-import { encode } from './helpers';
 
 export async function refreshAccessToken(env: Env, membershipId: string, refresh_token: string) {
 	const tokenUrl = 'https://www.bungie.net/platform/app/oauth/token';
@@ -28,10 +27,9 @@ export async function refreshAccessToken(env: Env, membershipId: string, refresh
 	}
 
 	const responseJson: TokenResponse = await response.json();
-	// const membershipId = parseInt(responseJson.membership_id);
 
 	//when we get response we should save membership id, refresh token, refresh expiry, current date in tokens
-	const _updateToken = await updateTokenRecord(env.loggr_db, membershipId, responseJson.refresh_token, responseJson.refresh_expires_in);
+	await updateTokenRecord(env.loggr_db, membershipId, responseJson.refresh_token, responseJson.refresh_expires_in);
 
 	return { responseJson, membershipId };
 }
